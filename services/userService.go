@@ -2,14 +2,18 @@ package services
 
 import (
 	"database/sql"
+	"errors"
 	"github.com/avi1989/Identity/models"
 	"github.com/avi1989/Identity/stores"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type UserService struct {
 	userStore       stores.IUserStore
 	permissionStore stores.PermissionStore
 }
+
+var InvalidLogin = errors.New("Invalid Login")
 
 func transformPermissions(permissions []models.Permission) []string {
 	vsm := make([]string, len(permissions))
@@ -58,11 +62,18 @@ func (service *UserService) AddUser(user *models.User) (int, error) {
 func (service *UserService) Login(emailAddress string, password string) (models.User, error) {
 	user, err := service.userStore.GetUserByEmailAddress(emailAddress)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return user, InvalidLogin
+		}
 		return user, err
 	}
 
 	err = comparePassword(password, user.Password)
 	if err != nil {
+		if err == bcrypt.ErrMismatchedHashAndPassword {
+			return user, InvalidLogin
+		}
+
 		return user, err
 	}
 
